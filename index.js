@@ -1,30 +1,40 @@
 const axios = require('axios');
 
 exports.handler = async (event) => {
-  const json = JSON.parse(event.body);
+    console.log("Received event:", JSON.stringify(event, null, 2));
 
-  const payload = {
-    text: `Issue Created: ${json.issue.html_url}`,
-  };
+    let json;
+    try {
+        if (typeof event.body === 'string') {
+            json = JSON.parse(event.body);
+        } else {
+            json = event.body || event;
+        }
+    } catch (error) {
+        console.error('Error parsing event:', error);
+        return {
+            statusCode: 400,
+            body: JSON.stringify({ message: 'Could not parse event body as JSON' }),
+        };
+    }
 
-  const slackUrl = process.env.SLACK_URL;
+    const message = json.issue ? `Issue Created: ${json.issue.html_url}` : 'No issue URL found';
+    const payload = { text: message };
 
-  try {
-    const response = await axios.post(slackUrl, payload, {
-      headers: {
-        'Content-Type': 'application/json',
-      },
-    });
-
-    return {
-      statusCode: 200,
-      body: JSON.stringify(response.data),
-    };
-  } catch (error) {
-    console.error("Error posting to Slack: ", error);
-    return {
-      statusCode: error.response.status,
-      body: JSON.stringify(error.message),
-    };
-  }
+    try {
+        const response = await axios.post(process.env.SLACK_URL, payload, {
+            headers: { 'Content-Type': 'application/json' },
+        });
+        console.log('Message posted to Slack:', response.data);
+        return {
+            statusCode: 200,
+            body: JSON.stringify({ message: 'Success', response: response.data }),
+        };
+    } catch (error) {
+        console.error('Error posting to Slack:', error.toString());
+        return {
+            statusCode: error.response ? error.response.status : 500,
+            body: JSON.stringify({ message: 'Failed to post message to Slack', error: error.toString() }),
+        };
+    }
 };
